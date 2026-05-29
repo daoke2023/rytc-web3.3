@@ -6,7 +6,7 @@
     <title>RYTC 生态 - 跨链资产聚合平台</title>
     <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
     <style>
-        /* 样式保持不变（与您原有的一致，此处完整保留） */
+        /* 完整样式（与原版本一致） */
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Inter', system-ui; background: radial-gradient(circle at 20% 30%, #0a0f2a, #030617); min-height: 100vh; padding: 24px; color: #f0f3ff; }
         .glow-line { position: fixed; top: 0; left: 0; width: 100%; height: 2px; background: linear-gradient(90deg, transparent, #00f2fe, #4facfe, #00f2fe, transparent); z-index: 100; }
@@ -91,7 +91,7 @@
         </div>
     </div>
 
-    <!-- 挖矿 Tab -->
+    <!-- 挖矿 Tab（完整矿机功能） -->
     <div id="mining-tab" class="tab-content">
         <div class="grid">
             <div class="card"><h2 data-i18n="mining_shop">⛏️ 矿机商城</h2><div id="minerTypesList"></div></div>
@@ -99,7 +99,7 @@
         </div>
     </div>
 
-    <!-- 团队分红 Tab（增加独立绑定区域） -->
+    <!-- 团队分红 Tab（独立绑定区域） -->
     <div id="team-tab" class="tab-content">
         <div class="grid">
             <div class="card">
@@ -202,7 +202,7 @@
     document.getElementById('langSelect').addEventListener('change', (e) => setLanguage(e.target.value));
     setLanguage('zh');
 
-    // ==================== 合约配置 ====================
+    // ==================== 合约配置（请修改为您的合约地址） ====================
     const CONFIG = {
         chainId: 137,
         token: "0xfab2Cc41282E20f98d1470802Ac51450EB8E9906",
@@ -228,16 +228,18 @@
     function showMessage(elId, msg, isError = false) { const el = document.getElementById(elId); if (el) { el.innerHTML = `<span style="color: ${isError ? '#ff7b72' : '#7effb3'}">${msg}</span>`; setTimeout(() => { if(el) el.innerHTML = ''; }, 8000); } }
     function showProgress(text, show = true) { const el = document.getElementById('buyProgress'); if (el) { el.style.display = show ? 'block' : 'none'; el.innerText = text; } }
 
-    // 刷新所有数据（保持不变）
+    // ========== 刷新所有数据（包含团队直推人数） ==========
     async function refreshAllData() {
         if (!userAddress || !tokenContract) return;
         try {
+            // 代币余额
             const rytcBal = await tokenContract.balanceOf(userAddress);
             document.getElementById('rytcBalance').innerText = formatDecimals(rytcBal, 18);
             const usdtBal = await usdtContract.balanceOf(userAddress);
             const usdtDec = await usdtContract.decimals();
             document.getElementById('usdtBalance').innerText = formatDecimals(usdtBal, usdtDec);
 
+            // IDO 信息
             if (idoContract) {
                 const start = await idoContract.startTime(); const end = await idoContract.endTime(); const rate = await idoContract.rate();
                 const total = await idoContract.totalIDOAmount(); const sold = await idoContract.soldAmount(); const remaining = await idoContract.getRemainingTokens();
@@ -256,34 +258,37 @@
                 document.getElementById('level2Rate').innerText = (l2.toNumber()/100).toString();
                 document.getElementById('idoPurchased').innerText = formatDecimals(purchased, 18);
 
+                // IDO 推荐人显示
                 const idoReferrer = await idoContract.referrer(userAddress);
-                if (idoReferrer !== ethers.constants.AddressZero) {
-                    document.getElementById('myReferrer').innerHTML = idoReferrer.slice(0,6)+'...'+idoReferrer.slice(-4);
-                } else {
-                    document.getElementById('myReferrer').innerHTML = '未绑定';
-                }
+                document.getElementById('myReferrer').innerHTML = (idoReferrer === ethers.constants.AddressZero) ? '未绑定' : idoReferrer.slice(0,6)+'...'+idoReferrer.slice(-4);
                 document.getElementById('inviteLink').innerHTML = window.location.origin + window.location.pathname + '?ref=' + userAddress;
             }
 
+            // 矿机
             if (miningContract) {
                 const pending = await miningContract.getPendingDailyReward(userAddress);
                 document.getElementById('pendingMiningReward').innerText = formatDecimals(pending, 18);
                 await renderMyMiners();
             }
 
+            // ========== 团队数据 ==========
             if (teamContract) {
+                // 待领取奖励
                 const teamPendingWei = await teamContract.getPendingTeamReward(userAddress);
                 const teamPendingFmt = formatDecimals(teamPendingWei, 18);
                 document.getElementById('pendingTeamReward').innerText = teamPendingFmt;
                 document.getElementById('pendingTeamRewardAsset').innerText = teamPendingFmt;
 
+                // 用户级别
                 const levelMap = ['None','T','T1','T2','T3','T4','T5','T6','T7'];
                 const levelVal = await teamContract.userLevel(userAddress);
                 document.getElementById('myLevel').innerText = levelMap[levelVal] || 'None';
 
+                // 直推人数（关键！）
                 const downCount = await teamContract.downlinesLength(userAddress);
                 document.getElementById('directCount').innerText = downCount.toString();
 
+                // 级别奖励比例
                 let ratesHtml = '';
                 for (let i = 1; i <= 7; i++) {
                     try {
@@ -294,6 +299,7 @@
                 document.getElementById('teamRates').innerHTML = ratesHtml;
             }
 
+            // 公会
             if (guildContract) {
                 const guildId = await guildContract.userGuild(userAddress);
                 if (!guildId.eq(0)) {
@@ -309,21 +315,88 @@
         } catch(e) { console.error(e); }
     }
 
-    // 矿机相关函数（与之前完全相同）
-    async function loadMinerTypes() { /* 略，实际代码与之前相同，此处不重复粘贴以节省篇幅，但实际使用时请保留完整实现 */ }
-    async function purchaseMiner(typeId, amountWei) { /* 略 */ }
-    async function renderMyMiners() { /* 略 */ }
-    async function claimMiningReward() { /* 略 */ }
-    document.getElementById('claimMiningBtn').onclick = claimMiningReward;
+    // ========== 矿机相关函数（完整实现，修复“暂无矿机”问题） ==========
+    async function loadMinerTypes() {
+        if (!miningContract) return;
+        const container = document.getElementById('minerTypesList');
+        container.innerHTML = '<div>加载中...</div>';
+        try {
+            let types = [];
+            for (let i = 0; i < 7; i++) {
+                try {
+                    const mt = await miningContract.minerTypes(i);
+                    if (mt && mt.enabled) {
+                        types.push({ id: i, days: mt.daysDuration, minStake: ethers.utils.formatEther(mt.minStake), maxStake: mt.maxStake.eq(0) ? '∞' : ethers.utils.formatEther(mt.maxStake), ratio: mt.totalRatio.toNumber()/100, limit: mt.maxPurchasesPerUser.eq(0) ? '不限' : mt.maxPurchasesPerUser.toString() });
+                    }
+                } catch(e) { break; }
+            }
+            if (types.length === 0) { container.innerHTML = '<p>暂无可用矿机</p>'; return; }
+            let html = '';
+            for (let t of types) {
+                html += `<div class="miner-item">
+                            <div><strong>${t.days}天矿机</strong> (释放 ${t.ratio}%)</div>
+                            <div>门槛: ${t.minStake} - ${t.maxStake} RYTC</div>
+                            <div>限购: ${t.limit}</div>
+                            <input type="number" id="minerAmount_${t.id}" placeholder="购买数量 (RYTC)" step="10">
+                            <button class="buyMinerBtn" data-id="${t.id}">购买 ${t.days}天矿机</button>
+                         </div>`;
+            }
+            container.innerHTML = html;
+            document.querySelectorAll('.buyMinerBtn').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    const typeId = parseInt(btn.getAttribute('data-id'));
+                    const amountInput = document.getElementById(`minerAmount_${typeId}`);
+                    const amount = amountInput.value;
+                    if (!amount || parseFloat(amount) <= 0) { alert('输入有效数量'); return; }
+                    await purchaseMiner(typeId, ethers.utils.parseEther(amount));
+                });
+            });
+        } catch(e) { console.error(e); container.innerHTML = '<p>加载失败，请检查合约地址</p>'; }
+    }
 
-    // 为了使代码可直接使用，下面提供简化版的矿机函数（确保不报错）。实际运行时您应保留原来的完整实现。
-    // 由于篇幅，这里只给出框架，您在实际部署时请将原有完整的 loadMinerTypes, purchaseMiner, renderMyMiners 等函数复制过来。
-    // 为避免编译错误，我在此处提供简化的版本（仅作占位），您务必替换为真实逻辑。
-    async function loadMinerTypes() { const c = document.getElementById('minerTypesList'); c.innerHTML = '<p>请确保合约地址正确</p>'; }
-    async function purchaseMiner(typeId, amountWei) { alert("矿机购买功能需完整实现"); }
-    async function renderMyMiners() { const c = document.getElementById('myMinersList'); c.innerHTML = '<p>暂无矿机</p>'; }
-    async function claimMiningReward() { alert("领取功能需完整实现"); }
-    // 注意：以上占位函数仅用于避免报错，实际部署时请替换为您之前正常工作的完整代码。
+    async function purchaseMiner(typeId, amountWei) {
+        if (!userAddress) { alert('请先连接钱包'); return; }
+        try {
+            const allowance = await tokenContract.allowance(userAddress, CONFIG.mining);
+            if (allowance.lt(amountWei)) {
+                const approveTx = await tokenContract.approve(CONFIG.mining, MAX_UINT256);
+                await approveTx.wait();
+            }
+            const tx = await miningContract.purchaseMiner(typeId, amountWei);
+            showMessage('miningResult', '⏳ 购买矿机中...');
+            await tx.wait();
+            showMessage('miningResult', '✅ 矿机购买成功');
+            await refreshAllData();
+            await renderMyMiners();
+        } catch(err) { showMessage('miningResult', '❌ '+err.message, true); }
+    }
+
+    async function renderMyMiners() {
+        if (!miningContract || !userAddress) return;
+        try {
+            const miners = await miningContract.getUserMiners(userAddress);
+            const container = document.getElementById('myMinersList');
+            if (!miners.length) { container.innerHTML = '<p>暂无矿机</p>'; return; }
+            let html = '';
+            for (let m of miners) {
+                if (!m.active) continue;
+                const mt = await miningContract.minerTypes(m.minerTypeId);
+                const days = mt.daysDuration;
+                const totalRelease = ethers.utils.formatEther(m.totalRelease);
+                const claimed = ethers.utils.formatEther(m.claimedAmount);
+                const remaining = ethers.utils.formatEther(m.totalRelease.sub(m.claimedAmount));
+                const endDate = new Date(m.endTime.toNumber()*1000).toLocaleDateString();
+                html += `<div class="miner-item"><div><strong>${days}天矿机</strong> | 投入: ${ethers.utils.formatEther(m.amount)} RYTC</div><div>总释放: ${totalRelease} | 已领: ${claimed} | 剩余: ${remaining}</div><div>到期: ${endDate}</div></div>`;
+            }
+            container.innerHTML = html;
+        } catch(e) { console.error(e); }
+    }
+
+    async function claimMiningReward() {
+        try { const tx = await miningContract.claimDailyReward(); showMessage('miningResult','⏳ 领取中'); await tx.wait(); showMessage('miningResult','✅ 已到账'); await refreshAllData(); } 
+        catch(err) { showMessage('miningResult','❌ '+err.message, true); }
+    }
+    document.getElementById('claimMiningBtn').onclick = claimMiningReward;
 
     // 复制邀请链接
     document.getElementById('copyLinkBtn').onclick = () => {
@@ -334,7 +407,7 @@
         }
     };
 
-    // ==================== IDO 购买（移除自动绑定逻辑） ====================
+    // ==================== IDO 购买（不自动绑定团队） ====================
     document.getElementById('buyBtn').onclick = async () => {
         if (!userAddress) { alert('请先连接钱包'); return; }
         const usdtAmountInput = parseFloat(document.getElementById('usdtAmount').value);
@@ -418,7 +491,7 @@
         }
     };
 
-    // 连接钱包（移除自动绑定逻辑，仅保留推荐链接填入）
+    // ==================== 连接钱包 ====================
     async function connectWallet() {
         if (!window.ethereum) { alert('安装MetaMask'); return; }
         try {
@@ -445,9 +518,7 @@
             const refAddress = urlParams.get('ref');
             if (refAddress && ethers.utils.isAddress(refAddress) && refAddress.toLowerCase() !== userAddress.toLowerCase()) {
                 document.getElementById('referrerAddr').value = refAddress;
-                // 可选：同时填入团队绑定输入框
                 document.getElementById('bindReferrerAddr').value = refAddress;
-                // 可以在此处给出提示：请手动点击“绑定推荐人”
                 showMessage('bindResult', '检测到推荐链接，请手动点击“绑定推荐人”以建立团队关系', false);
             }
 
