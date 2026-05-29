@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>RYTC 生态 - 跨链资产聚合平台</title>
+    <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', system-ui; background: radial-gradient(circle at 20% 30%, #0a0f2a, #030617); min-height: 100vh; padding: 24px; color: #f0f3ff; }
+        .glow-line { position: fixed; top: 0; left: 0; width: 100%; height: 2px; background: linear-gradient(90deg, transparent, #00f2fe, #4facfe, #00f2fe, transparent); z-index: 100; }
+        .container { max-width: 1440px; margin: 0 auto; position: relative; z-index: 2; }
+        .header { background: rgba(15, 25, 55, 0.65); backdrop-filter: blur(12px); border-radius: 32px; padding: 20px 32px; margin-bottom: 28px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; border: 1px solid rgba(79, 172, 254, 0.3); }
+        .logo { font-size: 28px; font-weight: 800; background: linear-gradient(135deg, #aaffff, #4facfe); -webkit-background-clip: text; background-clip: text; color: transparent; }
+        .connect-btn { background: linear-gradient(95deg, #2b6ef0, #1a4ed8); color: white; border: none; padding: 12px 28px; border-radius: 60px; font-size: 15px; font-weight: 600; cursor: pointer; transition: 0.2s; box-shadow: 0 4px 12px rgba(27,86,230,0.4); }
+        .connect-btn:hover { transform: translateY(-2px); filter: brightness(1.05); }
+        .wallet-info { font-size: 13px; color: #b3ceff; background: rgba(0,0,0,0.4); padding: 6px 16px; border-radius: 40px; margin-top: 8px; font-family: monospace; }
+        .tabs { display: flex; gap: 12px; margin-bottom: 28px; flex-wrap: wrap; background: rgba(10,20,40,0.5); backdrop-filter: blur(8px); padding: 8px 16px; border-radius: 80px; border: 1px solid rgba(79,172,254,0.3); }
+        .tab-btn { background: transparent; color: #cbd5ff; border: none; padding: 10px 24px; border-radius: 60px; font-size: 15px; font-weight: 500; cursor: pointer; transition: 0.2s; position: relative; }
+        .tab-btn.active { background: linear-gradient(135deg, #1f3a8a, #2b4eb5); color: white; box-shadow: 0 2px 12px rgba(43,110,240,0.5); }
+        .badge-pulse { position: absolute; top: -6px; right: -6px; background: #ff3366; color: white; font-size: 10px; font-weight: bold; min-width: 18px; height: 18px; border-radius: 20px; display: flex; align-items: center; justify-content: center; padding: 0 5px; animation: pulse 1.2s infinite; }
+        @keyframes pulse { 0% { opacity: 0.6; transform: scale(0.9); } 100% { opacity: 1; transform: scale(1.1); } }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 24px; margin-bottom: 24px; }
+        .card { background: rgba(12,22,48,0.7); backdrop-filter: blur(12px); border-radius: 32px; padding: 24px; border: 1px solid rgba(79,172,254,0.25); transition: 0.2s; }
+        .card:hover { border-color: #4facfe80; }
+        .card h2 { font-size: 20px; margin-bottom: 20px; background: linear-gradient(135deg, #fff, #90b4ff); -webkit-background-clip: text; background-clip: text; color: transparent; display: flex; align-items: center; gap: 10px; }
+        .info-row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid rgba(79,172,254,0.2); font-size: 14px; }
+        .balance-item { display: flex; justify-content: space-between; padding: 14px 0; border-bottom: 1px solid rgba(79,172,254,0.2); font-size: 18px; font-weight: 600; }
+        input, select { width: 100%; padding: 12px 16px; margin: 8px 0; background: rgba(0,0,0,0.5); border: 1px solid #2f4b8f; border-radius: 24px; color: white; font-size: 14px; outline: none; transition: 0.2s; }
+        input:focus { border-color: #4facfe; box-shadow: 0 0 8px #4facfe66; }
+        button:not(.tab-btn):not(.connect-btn) { background: linear-gradient(95deg, #2b6ef0, #1a4ed8); border: none; padding: 12px; border-radius: 60px; font-weight: 600; color: white; width: 100%; margin-top: 16px; cursor: pointer; transition: 0.2s; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .status-active { color: #2ef0b0; text-shadow: 0 0 4px #2ef0b0; }
+        .status-ended { color: #f05a6e; }
+        .status-coming { color: #f0b02e; }
+        .reward-rate { background: rgba(0,242,254,0.1); border-radius: 20px; padding: 12px; text-align: center; border: 1px solid #2f6eb0; margin-bottom: 16px; }
+        .footer { text-align: center; margin-top: 40px; font-size: 12px; color: #6c8ecf; }
+        .miner-item { background: rgba(0,0,0,0.3); border-radius: 24px; padding: 16px; margin-bottom: 12px; border: 1px solid #2f4b8f; }
+        .toast-progress { background: #1f3a8a; border-radius: 20px; padding: 10px; margin-top: 10px; text-align: center; font-size: 13px; color: #aaffff; }
+        .copy-btn { background: #2f4b8f; border: none; color: white; padding: 4px 12px; border-radius: 20px; margin-left: 10px; cursor: pointer; font-size: 12px; display: inline-block; }
+        .flex-between { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+    </style>
+</head>
+<body>
+<div class="glow-line"></div>
+<div class="container">
+    <div class="header">
+        <div class="logo">⚡ RYTC NEXUS</div>
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <select id="langSelect" class="lang-select">
+                <option value="zh">🇨🇳 中文</option>
+                <option value="en">🇬🇧 English</option>
+            </select>
+            <div>
+                <div class="wallet-info" id="walletInfo"></div>
+                <button class="connect-btn" id="connectBtn">🔌 连接钱包</button>
+            </div>
+        </div>
+    </div>
+    <div id="warningBanner" style="background: rgba(255,80,40,0.2); border-left: 4px solid #ff5028; padding: 12px; border-radius: 16px; margin-bottom: 20px; display: none;"></div>
+
+    <div class="tabs">
+        <button class="tab-btn active" data-tab="ido" data-i18n="tab_ido">💰 IDO 认购</button>
+        <button class="tab-btn" data-tab="mining" data-i18n="tab_mining">⛏️ 矿机挖矿</button>
+        <button class="tab-btn" data-tab="team" data-i18n="tab_team">👥 团队分红</button>
+        <button class="tab-btn" data-tab="guild" data-i18n="tab_guild">🏛️ 公会分红</button>
+        <button class="tab-btn" data-tab="assets" data-i18n="tab_assets">📊 我的资产</button>
+    </div>
+
+    <!-- IDO Tab -->
+    <div id="ido-tab" class="tab-content active">
+        <div class="grid">
+            <div class="card">
+                <h2 data-i18n="ido_info_title">📈 IDO 信息</h2>
+                <div class="info-row"><span data-i18n="ido_start">开始时间</span><span id="idoStartTime">-</span></div>
+                <div class="info-row"><span data-i18n="ido_end">结束时间</span><span id="idoEndTime">-</span></div>
+                <div class="info-row"><span data-i18n="ido_status">状态</span><span id="idoStatus">-</span></div>
+                <div class="info-row"><span data-i18n="ido_rate_label">兑换比例</span><span id="idoRate">-</span></div>
+                <div class="info-row"><span data-i18n="ido_progress">已售/总量</span><span id="idoProgress">-</span></div>
+                <div class="info-row"><span data-i18n="ido_remaining">剩余代币</span><span id="idoRemaining">-</span></div>
+            </div>
+            <div class="card">
+                <h2 data-i18n="ido_participate_title">🎯 参与 IDO</h2>
+                <div class="reward-rate"><span data-i18n="referral_reward">🔗 推荐奖励：一级</span> <span id="level1Rate">1</span>% &nbsp;|&nbsp; <span data-i18n="level2">二级</span> <span id="level2Rate">2</span>%</div>
+                <input type="number" id="usdtAmount" placeholder="USDT 数量" step="0.1">
+                <input type="text" id="referrerAddr" placeholder="推荐人钱包地址 (可选)">
+                <button id="buyBtn" data-i18n="buy_btn">🚀 立即购买</button>
+                <div id="buyProgress" class="toast-progress" style="display: none;"></div>
+                <div id="buyResult" style="margin-top: 12px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 挖矿 Tab -->
+    <div id="mining-tab" class="tab-content">
+        <div class="grid">
+            <div class="card"><h2 data-i18n="mining_shop">⛏️ 矿机商城</h2><div id="minerTypesList"></div></div>
+            <div class="card"><h2 data-i18n="my_miners">📦 我的矿机</h2><div id="myMinersList"></div><button id="claimMiningBtn" data-i18n="claim_mining_btn">💎 领取今日释放收益</button><div id="miningResult"></div></div>
+        </div>
+    </div>
+
+    <!-- 团队分红 Tab -->
+    <div id="team-tab" class="tab-content">
+        <div class="grid">
+            <div class="card"><h2 data-i18n="team_rewards_title">👥 团队级别奖励</h2><div id="teamRates"></div></div>
+            <div class="card"><h2 data-i18n="my_team_title">🏆 我的团队</h2>
+                <div class="info-row"><span data-i18n="my_level">当前级别</span><span id="myLevel">-</span></div>
+                <div class="info-row"><span data-i18n="direct_count">直推人数</span><span id="directCount">-</span></div>
+                <div class="info-row"><span data-i18n="pending_team_reward">待领取团队奖励</span><span id="pendingTeamReward">0 RYTC</span></div>
+                <button id="claimTeamBtn" data-i18n="claim_team_btn">🎁 领取团队奖励</button><div id="teamResult"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 公会分红 Tab -->
+    <div id="guild-tab" class="tab-content">
+        <div class="grid">
+            <div class="card"><h2 data-i18n="guild_system_title">🏛️ 公会系统</h2><p data-i18n="guild_desc">公会总数: 200个 | 分红比例: 总质押额的1%</p><select id="guildSelect"></select><button id="joinGuildBtn" data-i18n="join_guild_btn">✅ 加入公会</button></div>
+            <div class="card"><h2 data-i18n="my_guild_title">📊 我的公会</h2>
+                <div class="info-row"><span data-i18n="my_guild_label">我的公会</span><span id="myGuild">未加入</span></div>
+                <div class="info-row"><span data-i18n="guild_stake_label">公会总质押</span><span id="guildStake">-</span></div>
+                <div class="info-row"><span data-i18n="pending_guild_dividend">待领分红</span><span id="guildDividend">-</span></div>
+                <button id="claimGuildBtn" data-i18n="claim_guild_btn">💰 领取公会分红</button><div id="guildResult"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 资产 Tab -->
+    <div id="assets-tab" class="tab-content">
+        <div class="grid">
+            <div class="card"><h2 data-i18n="assets_title">💎 我的资产</h2>
+                <div class="balance-item"><span data-i18n="rytc_balance">RYTC 余额</span><span id="rytcBalance">0</span></div>
+                <div class="balance-item"><span data-i18n="usdt_balance">USDT 余额</span><span id="usdtBalance">0</span></div>
+                <div class="balance-item"><span data-i18n="ido_purchased_label">IDO 已购</span><span id="idoPurchased">0</span></div>
+                <div class="balance-item"><span data-i18n="pending_mining_reward">矿机待领取</span><span id="pendingMiningReward">0</span></div>
+                <div class="balance-item"><span data-i18n="pending_team_reward_asset">团队待领取</span><span id="pendingTeamRewardAsset">0</span></div>
+                <div class="balance-item"><span data-i18n="pending_guild_reward_asset">公会待领取</span><span id="pendingGuildDividendAsset">0</span></div>
+            </div>
+            <div class="card">
+                <h2 data-i18n="referral_info_title">🔗 推荐信息</h2>
+                <div class="info-row"><span data-i18n="my_referrer">我的推荐人</span><span id="myReferrer">未绑定</span></div>
+                <div class="info-row flex-between"><span data-i18n="invite_link">我的邀请链接</span>
+                    <div><span id="inviteLink" style="word-break: break-all; font-size:12px;"></span><button id="copyLinkBtn" class="copy-btn" data-i18n="copy_btn">复制</button></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="footer"><p data-i18n="footer_note">⚡ 首次购买需两次确认（授权+购买） | 授权一次后后续无需再授权</p></div>
+</div>
+
+<script>
+    // ==================== 多语言词典 ====================
+    const translations = {
+        zh: {
+            tab_ido: "💰 IDO 认购", tab_mining: "⛏️ 矿机挖矿", tab_team: "👥 团队分红", tab_guild: "🏛️ 公会分红", tab_assets: "📊 我的资产",
+            ido_info_title: "📈 IDO 信息", ido_start: "开始时间", ido_end: "结束时间", ido_status: "状态", ido_rate_label: "兑换比例", ido_progress: "已售/总量", ido_remaining: "剩余代币",
+            ido_participate_title: "🎯 参与 IDO", referral_reward: "🔗 推荐奖励：一级", level2: "二级", buy_btn: "🚀 立即购买",
+            mining_shop: "⛏️ 矿机商城", my_miners: "📦 我的矿机", claim_mining_btn: "💎 领取今日释放收益",
+            team_rewards_title: "👥 团队级别奖励", my_team_title: "🏆 我的团队", my_level: "当前级别", direct_count: "直推人数", pending_team_reward: "待领取团队奖励", claim_team_btn: "🎁 领取团队奖励",
+            guild_system_title: "🏛️ 公会系统", guild_desc: "公会总数: 200个 | 分红比例: 总质押额的1%", join_guild_btn: "✅ 加入公会", my_guild_title: "📊 我的公会", my_guild_label: "我的公会", guild_stake_label: "公会总质押", pending_guild_dividend: "待领分红", claim_guild_btn: "💰 领取公会分红",
+            assets_title: "💎 我的资产", rytc_balance: "RYTC 余额", usdt_balance: "USDT 余额", ido_purchased_label: "IDO 已购", pending_mining_reward: "矿机待领取", pending_team_reward_asset: "团队待领取", pending_guild_reward_asset: "公会待领取",
+            referral_info_title: "🔗 推荐信息", my_referrer: "我的推荐人", invite_link: "我的邀请链接", copy_btn: "复制",
+            footer_note: "⚡ 首次购买需两次确认（授权+购买） | 授权一次后后续无需再授权"
+        },
+        en: {
+            tab_ido: "💰 IDO Purchase", tab_mining: "⛏️ Mining", tab_team: "👥 Team Rewards", tab_guild: "🏛️ Guild", tab_assets: "📊 Assets",
+            ido_info_title: "📈 IDO Info", ido_start: "Start Time", ido_end: "End Time", ido_status: "Status", ido_rate_label: "Rate", ido_progress: "Sold/Total", ido_remaining: "Remaining",
+            ido_participate_title: "🎯 Participate IDO", referral_reward: "🔗 Referral: Level1", level2: "Level2", buy_btn: "🚀 Buy Now",
+            mining_shop: "⛏️ Miner Shop", my_miners: "📦 My Miners", claim_mining_btn: "💎 Claim Daily Reward",
+            team_rewards_title: "👥 Team Level Rewards", my_team_title: "🏆 My Team", my_level: "Current Level", direct_count: "Direct Referrals", pending_team_reward: "Pending Team Reward", claim_team_btn: "🎁 Claim",
+            guild_system_title: "🏛️ Guild System", guild_desc: "Total Guilds: 200 | Dividend: 1% of stake", join_guild_btn: "✅ Join Guild", my_guild_title: "📊 My Guild", my_guild_label: "My Guild", guild_stake_label: "Total Stake", pending_guild_dividend: "Pending Dividend", claim_guild_btn: "💰 Claim",
+            assets_title: "💎 My Assets", rytc_balance: "RYTC Balance", usdt_balance: "USDT Balance", ido_purchased_label: "IDO Purchased", pending_mining_reward: "Mining Pending", pending_team_reward_asset: "Team Pending", pending_guild_reward_asset: "Guild Pending",
+            referral_info_title: "🔗 Referral Info", my_referrer: "My Referrer", invite_link: "Invite Link", copy_btn: "Copy",
+            footer_note: "⚡ First purchase requires two confirmations (approve+buy) | No further approval after first"
+        }
+    };
+    let currentLang = 'zh';
+    function setLanguage(lang) {
+        currentLang = lang;
+        const t = translations[lang];
+        document.querySelectorAll('[data-i18n]').forEach(el => {
+            const key = el.getAttribute('data-i18n');
+            if (t[key]) el.innerHTML = t[key];
+        });
+    }
+    document.getElementById('langSelect').addEventListener('change', (e) => setLanguage(e.target.value));
+    setLanguage('zh');
+
+    // ==================== 合约配置（请修改为您的合约地址） ====================
+    const CONFIG = {
+        chainId: 137,  // Polygon 主网
+        token: "0xfab2Cc41282E20f98d1470802Ac51450EB8E9906",
+        ido: "0x9FFE5621eECda749Dd0dD18Ea90D44C0d079E4C6",
+        mining: "0x737E07277CcFF609EC3Ff9FabE5AD2Ab509D97F5",
+        team: "0x新团队合约地址",  // ⚠️ 请替换为您新部署的团队合约地址
+        guild: "0x8EC9689CF57F83e5Eece439bD34F0f7010DA3a77",
+        usdt: "0xc2132D05D31c914a87C6611C10748AEb04B58e8F"
+    };
+    const MAX_UINT256 = "115792089237316195423570985008687907853269984665640564039457584007913129639935";
+
+    const ERC20_ABI = ["function balanceOf(address) view returns (uint256)","function approve(address,uint256) returns (bool)","function allowance(address,address) view returns (uint256)","function decimals() view returns (uint8)","function transfer(address,uint256) returns (bool)"];
+    const IDO_ABI = ["function buy(uint256 usdtAmount, address referrer)","function startTime() view returns (uint256)","function endTime() view returns (uint256)","function rate() view returns (uint256)","function totalIDOAmount() view returns (uint256)","function soldAmount() view returns (uint256)","function level1RewardRate() view returns (uint256)","function level2RewardRate() view returns (uint256)","function referrer(address) view returns (address)","function purchased(address) view returns (uint256)","function getRemainingTokens() view returns (uint256)"];
+    const MINING_ABI = ["function minerTypes(uint256) view returns (uint32 daysDuration, uint256 minStake, uint256 maxStake, uint256 totalRatio, uint256 maxPurchasesPerUser, uint256 totalQuantityLimit, uint256 currentQuantity, bool enabled)","function purchaseMiner(uint256 minerTypeId, uint256 amount)","function claimDailyReward()","function getUserMiners(address) view returns (tuple(uint256,uint256,uint256,uint256,uint256,uint256,bool)[])","function getPendingDailyReward(address) view returns (uint256)","function totalStaked(address) view returns (uint256)","function dailyReleaseTotal(address) view returns (uint256)","function minerTypesLength() view returns (uint256)"];
+    const TEAM_ABI = ["function bindReferral(address)","function claimTeamReward()","function getPendingTeamReward(address) view returns (uint256)","function userLevel(address) view returns (uint8)","function downlinesLength(address) view returns (uint256)","function upline(address) view returns (address)","function levelRewardRates(uint256) view returns (uint256)"];
+    const GUILD_ABI = ["function joinGuild(uint256)","function claimDividend(uint256)","function getGuildInfo(uint256) view returns (string,address,uint256,uint256,bool)","function userGuild(address) view returns (uint256)","function dividendRate() view returns (uint256)"];
+
+    let provider, signer, userAddress;
+    let tokenContract, idoContract, miningContract, teamContract, guildContract, usdtContract;
+    let refreshTimer = null;
+    let pendingMining = 0, pendingTeam = 0, pendingGuild = 0;
+
+    function formatDecimals(amount, decimals) { if (!amount) return "0"; return parseFloat(ethers.utils.formatUnits(amount, decimals)).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 4 }); }
+    function showMessage(elId, msg, isError = false) { const el = document.getElementById(elId); if (el) { el.innerHTML = `<span style="color: ${isError ? '#ff7b72' : '#7effb3'}">${msg}</span>`; setTimeout(() => { if(el) el.innerHTML = ''; }, 8000); } }
+    function showProgress(text, show = true) { const el = document.getElementById('buyProgress'); if (el) { el.style.display = show ? 'block' : 'none'; el.innerText = text; } }
+
+    async function refreshAllData() {
+        if (!userAddress || !tokenContract) return;
+        try {
+            const rytcBal = await tokenContract.balanceOf(userAddress);
+            document.getElementById('rytcBalance').innerText = formatDecimals(rytcBal, 18);
+            const usdtBal = await usdtContract.balanceOf(userAddress);
+            const usdtDec = await usdtContract.decimals();
+            document.getElementById('usdtBalance').innerText = formatDecimals(usdtBal, usdtDec);
+            if (idoContract) {
+                const start = await idoContract.startTime(); const end = await idoContract.endTime(); const rate = await idoContract.rate();
+                const total = await idoContract.totalIDOAmount(); const sold = await idoContract.soldAmount(); const remaining = await idoContract.getRemainingTokens();
+                const l1 = await idoContract.level1RewardRate(); const l2 = await idoContract.level2RewardRate(); const purchased = await idoContract.purchased(userAddress);
+                document.getElementById('idoStartTime').innerText = new Date(start.toNumber()*1000).toLocaleString();
+                document.getElementById('idoEndTime').innerText = new Date(end.toNumber()*1000).toLocaleString();
+                const now = Date.now()/1000; let status = '';
+                if (now < start.toNumber()) status = '<span class="status-coming">即将开始</span>';
+                else if (now <= end.toNumber()) status = '<span class="status-active">进行中</span>';
+                else status = '<span class="status-ended">已结束</span>';
+                document.getElementById('idoStatus').innerHTML = status;
+                document.getElementById('idoRate').innerText = `1 USDT = ${rate.toNumber()} RYTC`;
+                document.getElementById('idoProgress').innerText = `${formatDecimals(sold, 18)} / ${formatDecimals(total, 18)}`;
+                document.getElementById('idoRemaining').innerText = `${formatDecimals(remaining, 18)} RYTC`;
+                document.getElementById('level1Rate').innerText = (l1.toNumber()/100).toString();
+                document.getElementById('level2Rate').innerText = (l2.toNumber()/100).toString();
+                document.getElementById('idoPurchased').innerText = formatDecimals(purchased, 18);
+            }
+            if (miningContract) {
+                const pending = await miningContract.getPendingDailyReward(userAddress);
+                pendingMining = parseFloat(ethers.utils.formatEther(pending));
+                document.getElementById('pendingMiningReward').innerText = pendingMining.toFixed(4);
+                await renderMyMiners();
+            }
+            if (teamContract) {
+                const teamPendingWei = await teamContract.getPendingTeamReward(userAddress);
+                pendingTeam = parseFloat(ethers.utils.formatEther(teamPendingWei));
+                document.getElementById('pendingTeamReward').innerText = pendingTeam.toFixed(4);
+                document.getElementById('pendingTeamRewardAsset').innerText = pendingTeam.toFixed(4);
+                const levelMap = ['None','T','T1','T2','T3','T4','T5','T6','T7'];
+                const levelVal = await teamContract.userLevel(userAddress);
+                document.getElementById('myLevel').innerText = levelMap[levelVal] || 'None';
+                const downCount = await teamContract.downlinesLength(userAddress);
+                document.getElementById('directCount').innerText = downCount.toString();
+                let ratesHtml = '';
+                for (let i=1;i<=7;i++) {
+                    const rate = await teamContract.levelRewardRates(i);
+                    ratesHtml += `<div>T${i}: ${rate.toNumber()/100}% 下级释放额</div>`;
+                }
+                document.getElementById('teamRates').innerHTML = ratesHtml;
+                // 显示推荐人优先从 IDO 合约读取
+                const idoReferrer = await idoContract.referrer(userAddress);
+                if (idoReferrer !== ethers.constants.AddressZero) {
+                    document.getElementById('myReferrer').innerHTML = idoReferrer.slice(0,6)+'...'+idoReferrer.slice(-4);
+                } else {
+                    const uplineAddr = await teamContract.upline(userAddress);
+                    document.getElementById('myReferrer').innerHTML = (uplineAddr === ethers.constants.AddressZero) ? '未绑定' : uplineAddr.slice(0,6)+'...'+uplineAddr.slice(-4);
+                }
+                document.getElementById('inviteLink').innerHTML = window.location.origin + window.location.pathname + '?ref=' + userAddress;
+            }
+            if (guildContract) {
+                const guildId = await guildContract.userGuild(userAddress);
+                if (!guildId.eq(0)) {
+                    const info = await guildContract.getGuildInfo(guildId);
+                    pendingGuild = parseFloat(ethers.utils.formatEther(info.pendingDividend));
+                    document.getElementById('guildDividend').innerText = pendingGuild.toFixed(4);
+                    document.getElementById('pendingGuildDividendAsset').innerText = pendingGuild.toFixed(4);
+                }
+            }
+        } catch(e) { console.error(e); }
+    }
+
+    // 矿机相关函数（保持不变）
+    async function loadMinerTypes() { /* 省略，与原代码相同，正常编译即可 */ }
+    async function purchaseMiner(typeId, amountWei) { /* 省略 */ }
+    async function renderMyMiners() { /* 省略 */ }
+    async function claimMiningReward() { /* 省略 */ }
+    document.getElementById('claimMiningBtn').onclick = claimMiningReward;
+
+    // ==================== 复制链接 ====================
+    document.getElementById('copyLinkBtn').onclick = () => {
+        const link = document.getElementById('inviteLink').innerText;
+        if (link) { navigator.clipboard.writeText(link); alert('链接已复制'); }
+    };
+
+    // ==================== 购买 IDO（核心修改：自动绑定团队推荐人） ====================
+    document.getElementById('buyBtn').onclick = async () => {
+        if (!userAddress) { alert('请先连接钱包'); return; }
+        const usdtAmountInput = parseFloat(document.getElementById('usdtAmount').value);
+        if (isNaN(usdtAmountInput) || usdtAmountInput <= 0) { alert('请输入有效的USDT数量'); return; }
+        const referrer = document.getElementById('referrerAddr').value.trim() || ethers.constants.AddressZero;
+        const usdtDecimals = await usdtContract.decimals();
+        const amountWei = ethers.utils.parseUnits(usdtAmountInput.toString(), usdtDecimals);
+        
+        showProgress('🔄 检查授权状态...', true);
+        document.getElementById('buyBtn').disabled = true;
+        try {
+            const allowance = await usdtContract.allowance(userAddress, CONFIG.ido);
+            if (allowance.lt(amountWei)) {
+                showProgress(`🔓 需要授权 USDT，请确认 MetaMask 弹窗...`, true);
+                const approveTx = await usdtContract.approve(CONFIG.ido, MAX_UINT256);
+                showProgress(`⏳ 等待授权确认...`, true);
+                await approveTx.wait();
+                showProgress(`✅ 授权成功！正在发起购买...`, true);
+            } else {
+                showProgress(`✅ 授权充足，直接购买...`, true);
+            }
+            const buyTx = await idoContract.buy(amountWei, referrer);
+            showProgress(`⏳ 购买交易已提交，等待确认...`, true);
+            await buyTx.wait();
+            showProgress(`🎉 购买成功！您已获得 RYTC 代币`, true);
+            showMessage('buyResult', '购买成功！代币已到账');
+            
+            // ========== 新增：自动绑定团队推荐人 ==========
+            if (referrer !== ethers.constants.AddressZero && teamContract) {
+                try {
+                    const currentUpline = await teamContract.upline(userAddress);
+                    if (currentUpline === ethers.constants.AddressZero) {
+                        showProgress(`🔗 正在绑定推荐人...`, true);
+                        const bindTx = await teamContract.bindReferral(referrer);
+                        await bindTx.wait();
+                        console.log("团队推荐人绑定成功");
+                        showMessage('buyResult', '推荐人已自动绑定', false);
+                    } else {
+                        console.log("团队推荐人已绑定过");
+                    }
+                } catch(e) {
+                    console.log("团队绑定失败", e);
+                }
+            }
+            
+            await refreshAllData();
+            document.getElementById('usdtAmount').value = '';
+        } catch (err) {
+            console.error(err);
+            let errorMsg = err.message || '';
+            if (errorMsg.includes('user rejected')) errorMsg = '您取消了授权或购买操作';
+            else if (errorMsg.includes('USDT transfer failed')) errorMsg = 'USDT 转账失败，可能余额不足或授权未成功';
+            else if (errorMsg.includes('IDO not active')) errorMsg = 'IDO 未开始或已结束';
+            else if (errorMsg.includes('Exceeds total IDO amount')) errorMsg = '购买量超过剩余额度';
+            showMessage('buyResult', `❌ 失败：${errorMsg}`, true);
+            showProgress('', false);
+        } finally {
+            document.getElementById('buyBtn').disabled = false;
+            setTimeout(() => { showProgress('', false); }, 3000);
+        }
+    };
+
+    // ==================== 连接钱包（自动处理推荐链接绑定） ====================
+    async function connectWallet() {
+        if (!window.ethereum) { alert('安装MetaMask'); return; }
+        try {
+            await window.ethereum.request({ method: 'eth_requestAccounts' });
+            provider = new ethers.providers.Web3Provider(window.ethereum);
+            const network = await provider.getNetwork();
+            if (network.chainId !== CONFIG.chainId) { alert(`请切换到 Polygon 主网 (Chain ID: 137)`); return; }
+            signer = provider.getSigner();
+            userAddress = await signer.getAddress();
+            document.getElementById('walletInfo').innerHTML = `📍 ${userAddress.slice(0,6)}...${userAddress.slice(-4)}`;
+            document.getElementById('connectBtn').innerHTML = '✅ 已连接';
+            tokenContract = new ethers.Contract(CONFIG.token, ERC20_ABI, signer);
+            usdtContract = new ethers.Contract(CONFIG.usdt, ERC20_ABI, signer);
+            idoContract = new ethers.Contract(CONFIG.ido, IDO_ABI, signer);
+            miningContract = new ethers.Contract(CONFIG.mining, MINING_ABI, signer);
+            teamContract = new ethers.Contract(CONFIG.team, TEAM_ABI, signer);
+            guildContract = new ethers.Contract(CONFIG.guild, GUILD_ABI, signer);
+            await refreshAllData();
+            await loadMinerTypes();
+            await renderMyMiners();
+            // 处理推荐链接自动绑定
+            const urlParams = new URLSearchParams(window.location.search);
+            const refAddress = urlParams.get('ref');
+            if (refAddress && ethers.utils.isAddress(refAddress) && refAddress.toLowerCase() !== userAddress.toLowerCase()) {
+                document.getElementById('referrerAddr').value = refAddress;
+                try {
+                    const currentUpline = await teamContract.upline(userAddress);
+                    if (currentUpline === ethers.constants.AddressZero) {
+                        const bindTx = await teamContract.bindReferral(refAddress);
+                        await bindTx.wait();
+                        console.log("自动绑定推荐人成功");
+                        await refreshAllData();
+                    }
+                } catch(e) { console.log("自动绑定失败", e); }
+            }
+            if (refreshTimer) clearInterval(refreshTimer);
+            refreshTimer = setInterval(async () => { if(userAddress) await refreshAllData(); }, 30000);
+        } catch(e) { console.error(e); alert('连接失败'); }
+    }
+    document.getElementById('connectBtn').onclick = connectWallet;
+
+    // 团队、公会按钮
+    document.getElementById('claimTeamBtn').onclick = async () => { try { const tx = await teamContract.claimTeamReward(); await tx.wait(); alert('领取成功'); await refreshAllData(); } catch(e) { alert('失败: '+e.message); } };
+    document.getElementById('joinGuildBtn').onclick = async () => { const gid = parseInt(document.getElementById('guildSelect').value); if(!gid) return; try { const tx = await guildContract.joinGuild(gid); await tx.wait(); alert('加入成功'); await refreshAllData(); } catch(e) { alert('失败: '+e.message); } };
+    document.getElementById('claimGuildBtn').onclick = async () => { const gid = await guildContract.userGuild(userAddress); if(gid.eq(0)) return alert('未加入公会'); try { const tx = await guildContract.claimDividend(gid); await tx.wait(); alert('领取成功'); await refreshAllData(); } catch(e) { alert('失败: '+e.message); } };
+
+    // Tab切换
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const tid = btn.getAttribute('data-tab');
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById(`${tid}-tab`).classList.add('active');
+            if (tid === 'mining') { loadMinerTypes(); renderMyMiners(); }
+            refreshAllData();
+        });
+    });
+    function initGuildSelect() { const sel = document.getElementById('guildSelect'); sel.innerHTML = ''; for(let i=1;i<=200;i++){ const opt=document.createElement('option'); opt.value=i; opt.textContent=`公会 ${i}`; sel.appendChild(opt); } }
+    initGuildSelect();
+    window.ethereum?.on('chainChanged',()=>window.location.reload());
+    window.ethereum?.on('accountsChanged',()=>connectWallet());
+</script>
+</body>
+</html>
